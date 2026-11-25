@@ -1,0 +1,33 @@
+{
+  "schemaVersion": 1,
+  "id": "cornerstone.worktrees",
+  "name": "Cornerstone Worktrees",
+  "version": "1.0.0",
+  "author": "Kush Beaver Productionz",
+  "license": "MIT",
+  "description": "Parallel agent & Godot worktree dashboard in the bar: branch, dirty count, ahead/behind, active Godot/agent processes, and one-click terminal or lazygit.",
+  "kinds": [
+    "service",
+    "bar-widget"
+  ],
+  "keepLoaded": true,
+  "entryPoints": {
+    "service": "Service.qml",
+    "barWidget": "Panel.qml"
+  },
+  "barWidget": {
+    "displayName": "Cornerstone Worktrees",
+    "description": "Live git repos & worktrees under ~/Projects with dirty/active badges and quick terminal/lazygit.",
+    "category": "Development",
+    "aliases": [
+      "worktrees",
+      "git",
+      "projects",
+      "branches",
+      "cornerstone-worktrees"
+    ],
+    "allowMultiple": false,
+    "defaultSection": "right",
+    "defaults": {}
+  }
+}
