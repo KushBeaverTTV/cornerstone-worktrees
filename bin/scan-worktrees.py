@@ -1,12 +1,22 @@
 #!/usr/bin/env python3
-"""Parallel git worktree & active-process scanner for ~/Projects."""
+"""Parallel git worktree & active-process scanner across discovered project roots.
+
+Auto-discovers ~/Projects, ~/Work, ~/Code, ~/dev, and ~/src (or uses paths from
+CORNERSTONE_WORKTREES_ROOTS / ~/.config/cornerstone-worktrees/roots).
+"""
 from concurrent.futures import ThreadPoolExecutor
 import glob
 import json
 import os
 import subprocess
 
-ROOT = os.path.expanduser("~/Projects")
+HOME = os.path.expanduser("~")
+DEFAULT_ROOTS = ("Projects", "Work", "Code", "dev", "src")
+CONFIG_FILE = os.path.join(
+    os.environ.get("XDG_CONFIG_HOME") or os.path.join(HOME, ".config"),
+    "cornerstone-worktrees",
+    "roots",
+)
 INTERESTING_PROCS = {
     "godot": "Godot",
     "claude": "Claude",
@@ -17,9 +27,39 @@ INTERESTING_PROCS = {
 }
 
 
-def scan_active_cwds():
+def discover_roots():
+    candidates = []
+    env_roots = os.environ.get("CORNERSTONE_WORKTREES_ROOTS", "").strip()
+    if env_roots:
+        candidates = [os.path.expanduser(p.strip()) for p in env_roots.split(":") if p.strip()]
+    elif os.path.isfile(CONFIG_FILE):
+        try:
+            with open(CONFIG_FILE) as f:
+                for line in f:
+                    line = line.split("#", 1)[0].strip()
+                    if line:
+                        candidates.append(os.path.expanduser(line))
+        except Exception:
+            pass
+    if not candidates:
+        candidates = [os.path.join(HOME, d) for d in DEFAULT_ROOTS]
+
+    roots = []
+    seen = set()
+    for p in candidates:
+        if os.path.isdir(p):
+            rp = os.path.realpath(p)
+            if rp not in seen:
+                seen.add(rp)
+                roots.append(rp)
+    return roots
+
+
+def scan_active_cwds(roots):
     """Map repo realpath -> set of interesting active tool tags."""
     by_dir = {}
+    if not roots:
+        return by_dir
     for pid_dir in glob.glob("/proc/[0-9]*"):
         try:
             with open(os.path.join(pid_dir, "comm")) as f:
@@ -32,10 +72,13 @@ def scan_active_cwds():
             if not tag:
                 continue
             cwd = os.path.realpath(os.path.join(pid_dir, "cwd"))
-            if cwd.startswith(ROOT + "/") or cwd == ROOT:
-                rel = cwd[len(ROOT) + 1:].split("/", 1)[0]
-                top = os.path.join(ROOT, rel)
-                by_dir.setdefault(top, set()).add(tag)
+            for root in roots:
+                if cwd.startswith(root + "/") or cwd == root:
+                    rel = cwd[len(root) + 1:].split("/", 1)[0]
+                    if rel:
+                        top = os.path.join(root, rel)
+                        by_dir.setdefault(top, set()).add(tag)
+                    break
         except Exception:
             pass
     return by_dir
@@ -98,16 +141,25 @@ def probe_repo(entry_path, active_map):
 
 
 def main():
-    if not os.path.isdir(ROOT):
+    roots = discover_roots()
+    if not roots:
         print(json.dumps({"repos": []}))
         return
-    active_map = scan_active_cwds()
+    active_map = scan_active_cwds(roots)
     dirs = []
-    for entry in os.scandir(ROOT):
-        if entry.name.startswith(".") or not entry.is_dir():
-            continue
-        if os.path.exists(os.path.join(entry.path, ".git")):
-            dirs.append(entry.path)
+    seen_dirs = set()
+    for root in roots:
+        try:
+            for entry in os.scandir(root):
+                if entry.name.startswith(".") or not entry.is_dir():
+                    continue
+                if os.path.exists(os.path.join(entry.path, ".git")):
+                    rp = os.path.realpath(entry.path)
+                    if rp not in seen_dirs:
+                        seen_dirs.add(rp)
+                        dirs.append(rp)
+        except Exception:
+            pass
     repos = []
     with ThreadPoolExecutor(max_workers=8) as pool:
         for res in pool.map(lambda p: probe_repo(p, active_map), dirs):
