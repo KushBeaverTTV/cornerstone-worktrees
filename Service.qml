@@ -28,7 +28,11 @@ Item {
 
   function openTerminal(path) {
     if (!path) return
-    Quickshell.execDetached(["sh", "-c", 'cd "$1" && exec foot', "sh", String(path)])
+    Quickshell.execDetached([
+      "sh", "-c",
+      'cd "$1" && if command -v xdg-terminal-exec >/dev/null 2>&1; then exec xdg-terminal-exec; elif command -v omarchy-launch-terminal >/dev/null 2>&1; then exec omarchy-launch-terminal; else exec foot; fi',
+      "sh", String(path)
+    ])
   }
 
   function openLazygit(path) {

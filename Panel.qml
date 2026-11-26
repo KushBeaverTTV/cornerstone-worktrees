@@ -157,7 +157,7 @@ Panel {
             }
             Text {
               textFormat: Text.PlainText
-              text: root.scanning ? "Scanning ~/Projects…"
+              text: root.scanning ? "Scanning workspaces…"
                     : (root.counts.total + " repos · " + root.counts.dirty + " dirty · " + root.counts.active + " active")
               color: root.muted
               font.family: root.fontFamily
@@ -206,8 +206,8 @@ Panel {
           visible: root.shown.length === 0
           textFormat: Text.PlainText
           text: root.filterMode === "active"
-            ? "All repos clean & idle — switch to All to browse ~/Projects"
-            : "No git repositories found in ~/Projects"
+            ? "All repos clean & idle — switch to All to browse"
+            : "No git repositories found in discovered workspace roots"
           color: root.muted
           font.family: root.fontFamily
           font.pixelSize: Style.font.caption
